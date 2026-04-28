@@ -348,7 +348,7 @@ function draw() {
 
 function drawStaff() {
   ctx.strokeStyle = '#111';
-  ctx.lineWidth = 8;
+  ctx.lineWidth = 12;
   for (let i = 0; i < NUM_LINES; i++) {
     const y = staffBottom - i * lineSpacing;
     ctx.beginPath();
@@ -366,7 +366,7 @@ function drawBarLines() {
   const startBar = Math.floor((startWorld - firstBarWorld) / barWidth);
   const endBar   = Math.ceil((endWorld   - firstBarWorld) / barWidth);
   ctx.strokeStyle = '#111';
-  ctx.lineWidth = 8;
+  ctx.lineWidth = 12;
   for (let b = startBar; b <= endBar; b++) {
     const screenX = (firstBarWorld + b * barWidth) - worldOffset + playheadX;
     ctx.beginPath();
