@@ -386,10 +386,10 @@ let tempoValue   = 60;
 
 // ── Metronome ─────────────────────────────────────────────────────
 let audioCtx = null;
-let metronomeTimeout = null;
-let currentBeat = 0;
-let countInBeats = 0;
+let metronomeInterval = null;
+let clickCount = 0;
 const COUNT_IN = 4;
+const LOOKAHEAD = 0.1; // seconds to schedule ahead
 
 function getAudioCtx() {
   if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
@@ -397,11 +397,11 @@ function getAudioCtx() {
 }
 
 function scheduleClick(time) {
-  const ctx = getAudioCtx();
-  const osc = ctx.createOscillator();
-  const gain = ctx.createGain();
+  const actx = getAudioCtx();
+  const osc  = actx.createOscillator();
+  const gain = actx.createGain();
   osc.connect(gain);
-  gain.connect(ctx.destination);
+  gain.connect(actx.destination);
   osc.frequency.value = 880;
   gain.gain.setValueAtTime(0.3, time);
   gain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
@@ -410,40 +410,31 @@ function scheduleClick(time) {
 }
 
 function startMetronome() {
-  countInBeats = 0;
   const actx = getAudioCtx();
+  clickCount = 0;
   let nextClickTime = actx.currentTime + 0.05;
+  let scrollStarted = false;
 
-  function tick() {
-    if (!isPlaying && countInBeats >= COUNT_IN) return;
-    scheduleClick(nextClickTime);
-    nextClickTime += beatDuration / 1000;
-    countInBeats++;
+  // Schedule clicks slightly ahead using a fast polling interval
+  metronomeInterval = setInterval(() => {
+    while (nextClickTime < actx.currentTime + LOOKAHEAD) {
+      scheduleClick(nextClickTime);
+      clickCount++;
 
-    if (countInBeats === COUNT_IN) {
-      // Schedule scroll to start exactly when the 5th click would fire
-      const msUntilStart = (nextClickTime - actx.currentTime) * 1000;
-      metronomeTimeout = setTimeout(() => {
+      if (clickCount === COUNT_IN + 1 && !scrollStarted) {
+        // This is beat 1 of the melody — start scroll now
+        scrollStarted = true;
         lastTimestamp = null;
         requestAnimationFrame(scrollTick);
-        // Keep clicking on every beat during scroll
-        function continueTick() {
-          if (!isPlaying) return;
-          scheduleClick(getAudioCtx().currentTime + 0.02);
-          metronomeTimeout = setTimeout(continueTick, beatDuration);
-        }
-        continueTick();
-      }, msUntilStart);
-    } else {
-      const msUntilNext = (nextClickTime - actx.currentTime) * 1000;
-      metronomeTimeout = setTimeout(tick, msUntilNext);
+      }
+
+      nextClickTime += beatDuration / 1000;
     }
-  }
-  tick();
+  }, 25);
 }
 
 function stopMetronome() {
-  if (metronomeTimeout) { clearTimeout(metronomeTimeout); metronomeTimeout = null; }
+  if (metronomeInterval) { clearInterval(metronomeInterval); metronomeInterval = null; }
 }
 
 function buildNotes(parsed) {
