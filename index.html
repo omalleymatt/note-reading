@@ -384,6 +384,60 @@ let lastTimestamp = null;
 let beatDuration = 1000;
 let tempoValue   = 60;
 
+// ── Metronome ─────────────────────────────────────────────────────
+let audioCtx = null;
+let metronomeTimeout = null;
+let currentBeat = 0;
+let countInBeats = 0;
+const COUNT_IN = 4;
+
+function getAudioCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return audioCtx;
+}
+
+function scheduleClick(time) {
+  const ctx = getAudioCtx();
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  osc.connect(gain);
+  gain.connect(ctx.destination);
+  osc.frequency.value = 880;
+  gain.gain.setValueAtTime(0.3, time);
+  gain.gain.exponentialRampToValueAtTime(0.001, time + 0.05);
+  osc.start(time);
+  osc.stop(time + 0.05);
+}
+
+function startMetronome() {
+  currentBeat = 0;
+  countInBeats = 0;
+  const ctx = getAudioCtx();
+  let nextClickTime = ctx.currentTime + 0.05;
+
+  function tick() {
+    scheduleClick(nextClickTime);
+    const delay = (nextClickTime - ctx.currentTime) * 1000;
+    nextClickTime += beatDuration / 1000;
+    countInBeats++;
+    if (countInBeats === COUNT_IN) {
+      // Count-in done — start scrolling on next beat
+      metronomeTimeout = setTimeout(() => {
+        lastTimestamp = null;
+        requestAnimationFrame(scrollTick);
+        metronomeTimeout = setTimeout(tick, beatDuration);
+      }, delay);
+    } else {
+      metronomeTimeout = setTimeout(tick, delay);
+    }
+  }
+  tick();
+}
+
+function stopMetronome() {
+  if (metronomeTimeout) { clearTimeout(metronomeTimeout); metronomeTimeout = null; }
+}
+
 function buildNotes(parsed) {
   let x = 0;
   notes = parsed.map(n => {
@@ -490,10 +544,15 @@ function togglePlay() {
   if (!notes.length) return;
   isPlaying = !isPlaying;
   document.getElementById('play-btn').textContent = isPlaying ? '⏸ Pause (Space)' : '▶ Play (Space)';
-  if (isPlaying) { lastTimestamp = null; requestAnimationFrame(tick); }
+  if (isPlaying) {
+    worldOffset = 0;
+    startMetronome();
+  } else {
+    stopMetronome();
+  }
 }
 
-function tick(ts) {
+function scrollTick(ts) {
   if (!isPlaying) return;
   if (lastTimestamp === null) lastTimestamp = ts;
   const dt = ts - lastTimestamp; lastTimestamp = ts;
@@ -502,15 +561,18 @@ function tick(ts) {
   const lastEnd = last.x + (last.half ? pixelsPerBeat * 2 : pixelsPerBeat);
   if (last && (lastEnd - worldOffset + playheadX) < -noteRadius * 6) {
     isPlaying = false;
+    stopMetronome();
     document.getElementById('play-btn').textContent = '▶ Play (Space)';
     worldOffset = 0; draw(); return;
   }
-  draw(); requestAnimationFrame(tick);
+  draw(); requestAnimationFrame(scrollTick);
 }
 
 document.getElementById('play-btn').addEventListener('click', togglePlay);
 document.getElementById('reset-btn').addEventListener('click', () => {
-  isPlaying = false; worldOffset = 0; lastTimestamp = null;
+  isPlaying = false;
+  stopMetronome();
+  worldOffset = 0; lastTimestamp = null;
   document.getElementById('play-btn').textContent = '▶ Play (Space)';
   draw();
 });
