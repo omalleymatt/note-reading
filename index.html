@@ -410,26 +410,33 @@ function scheduleClick(time) {
 }
 
 function startMetronome() {
-  currentBeat = 0;
   countInBeats = 0;
-  const ctx = getAudioCtx();
-  let nextClickTime = ctx.currentTime + 0.05;
+  const actx = getAudioCtx();
+  let nextClickTime = actx.currentTime + 0.05;
 
   function tick() {
+    if (!isPlaying && countInBeats >= COUNT_IN) return;
     scheduleClick(nextClickTime);
-    const delay = (nextClickTime - ctx.currentTime) * 1000;
     nextClickTime += beatDuration / 1000;
     countInBeats++;
+
     if (countInBeats === COUNT_IN) {
-      // Count-in done — start scrolling on the next beat
+      // Schedule scroll to start exactly when the 5th click would fire
+      const msUntilStart = (nextClickTime - actx.currentTime) * 1000;
       metronomeTimeout = setTimeout(() => {
-        scheduleClick(getAudioCtx().currentTime + 0.05);
         lastTimestamp = null;
         requestAnimationFrame(scrollTick);
-        metronomeTimeout = setTimeout(tick, beatDuration);
-      }, delay);
+        // Keep clicking on every beat during scroll
+        function continueTick() {
+          if (!isPlaying) return;
+          scheduleClick(getAudioCtx().currentTime + 0.02);
+          metronomeTimeout = setTimeout(continueTick, beatDuration);
+        }
+        continueTick();
+      }, msUntilStart);
     } else {
-      metronomeTimeout = setTimeout(tick, delay);
+      const msUntilNext = (nextClickTime - actx.currentTime) * 1000;
+      metronomeTimeout = setTimeout(tick, msUntilNext);
     }
   }
   tick();
