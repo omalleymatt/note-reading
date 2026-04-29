@@ -541,6 +541,7 @@ function drawNote(x, y, step, isHalf) {
 
 // ── Playback ───────────────────────────────────────────────────────
 function togglePlay() {
+  if (audioCtx) audioCtx.resume();
   if (!notes.length) return;
   isPlaying = !isPlaying;
   document.getElementById('play-btn').textContent = isPlaying ? '⏸ Pause (Space)' : '▶ Play (Space)';
