@@ -276,18 +276,35 @@ const DEFAULT_OCTAVE = {
   'C': 5, 'D': 5, 'E': 4, 'F': 4, 'G': 4, 'A': 4, 'B': 4
 };
 
+//Original code:
+// function parseInput(str) {
+//   const tokens = str.trim().toUpperCase().split(/[\s,]+/).filter(Boolean);
+//   const result = [];
+//   for (const tok of tokens) {
+//     const letter = tok[0];
+//     if (!'CDEFGAB'.includes(letter)) continue;
+//     const octave = tok.length > 1 ? parseInt(tok.slice(1)) : DEFAULT_OCTAVE[letter];
+//     const key = letter + octave;
+//     if (NOTE_STEPS.hasOwnProperty(key)) result.push({ step: NOTE_STEPS[key] });
+//   }
+//   return result;
+// }
+
+// Altered to add half notes
 function parseInput(str) {
   const tokens = str.trim().toUpperCase().split(/[\s,]+/).filter(Boolean);
   const result = [];
   for (const tok of tokens) {
     const letter = tok[0];
     if (!'CDEFGAB'.includes(letter)) continue;
-    const octave = tok.length > 1 ? parseInt(tok.slice(1)) : DEFAULT_OCTAVE[letter];
-    const key = letter + octave;
-    if (NOTE_STEPS.hasOwnProperty(key)) result.push({ step: NOTE_STEPS[key] });
+    const isHalf = tok.endsWith('H');
+    const inner  = isHalf ? tok.slice(0, -1) : tok;
+    const octave = inner.length > 1 ? parseInt(inner.slice(1)) : DEFAULT_OCTAVE[letter];
+    const key    = letter + octave;
+    if (NOTE_STEPS.hasOwnProperty(key)) result.push({ step: NOTE_STEPS[key], half: isHalf });
   }
   return result;
-}
+} 
 
 // ── Canvas / layout ────────────────────────────────────────────────
 const canvas = document.getElementById('staff-canvas');
@@ -321,15 +338,28 @@ let lastTimestamp = null;
 let beatDuration = 1000;
 let tempoValue = 60;
 
+// function buildNotes(parsed) {
+//   notes = parsed.map((n, i) => ({ step: n.step, x: i * pixelsPerBeat }));
+//   worldOffset = 0;
+//   isPlaying = false;
+//   lastTimestamp = null;
+//   document.getElementById('play-btn').textContent = '▶ Play (Space)';
+//   draw();
+// }
 function buildNotes(parsed) {
-  notes = parsed.map((n, i) => ({ step: n.step, x: i * pixelsPerBeat }));
-  worldOffset = 0;
-  isPlaying = false;
+  let x = 0;
+  notes = parsed.map(n => {
+    const note = { step: n.step, half: n.half, x };
+    x += pixelsPerBeat * (n.half ? 2 : 1);
+    return note;
+  });
+  worldOffset   = 0;
+  isPlaying     = false;
   lastTimestamp = null;
   document.getElementById('play-btn').textContent = '▶ Play (Space)';
   draw();
 }
-
+ 
 // ── Drawing ────────────────────────────────────────────────────────
 function staffY(step) {
   return staffBottom - step * (lineSpacing / 2);
@@ -391,52 +421,94 @@ function drawNotes() {
   for (const note of notes) {
     const screenX = note.x - worldOffset + playheadX;
     if (screenX < -noteRadius * 4 || screenX > W + noteRadius * 4) continue;
-    drawQuarterNote(screenX, staffY(note.step), note.step);
+    drawNote(screenX, staffY(note.step), note.step);
   }
 }
 
-function drawQuarterNote(x, y, step) {
+// function drawQuarterNote(x, y, step) {
+//   const r = noteRadius;
+//   if (step <= -2) {
+//     for (let s = -2; s >= step; s -= 2) {
+//       ctx.strokeStyle = '#111'; ctx.lineWidth = 3;
+//       ctx.beginPath();
+//       ctx.moveTo(x - r * 1.7, staffY(s));
+//       ctx.lineTo(x + r * 1.7, staffY(s));
+//       ctx.stroke();
+//     }
+//   }
+//   if (step >= 10) {
+//     for (let s = 10; s <= step; s += 2) {
+//       ctx.strokeStyle = '#111'; ctx.lineWidth = 3;
+//       ctx.beginPath();
+//       ctx.moveTo(x - r * 1.7, staffY(s));
+//       ctx.lineTo(x + r * 1.7, staffY(s));
+//       ctx.stroke();
+//     }
+//   }
+//   ctx.save();
+//   ctx.translate(x, y);
+//   ctx.rotate(-0.2);
+//   ctx.beginPath();
+//   ctx.ellipse(0, 0, r * 1.15, r * 0.82, 0, 0, Math.PI * 2);
+//   ctx.fillStyle = '#111';
+//   ctx.fill();
+//   ctx.restore();
+//   const stemHeight = lineSpacing * 3.5;
+//   ctx.strokeStyle = '#111';
+//   ctx.lineWidth = 3.5;
+//   ctx.beginPath();
+//   if (step >= 4) {
+//     ctx.moveTo(x - r * 0.9, y + r * 0.4);
+//     ctx.lineTo(x - r * 0.9, y + stemHeight);
+//   } else {
+//     ctx.moveTo(x + r * 0.9, y - r * 0.4);
+//     ctx.lineTo(x + r * 0.9, y - stemHeight);
+//   }
+//   ctx.stroke();
+// }
+
+function drawNote(x, y, step, isHalf) {
   const r = noteRadius;
   if (step <= -2) {
     for (let s = -2; s >= step; s -= 2) {
       ctx.strokeStyle = '#111'; ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(x - r * 1.7, staffY(s));
-      ctx.lineTo(x + r * 1.7, staffY(s));
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x - r*1.7, staffY(s)); ctx.lineTo(x + r*1.7, staffY(s)); ctx.stroke();
     }
   }
   if (step >= 10) {
     for (let s = 10; s <= step; s += 2) {
       ctx.strokeStyle = '#111'; ctx.lineWidth = 3;
-      ctx.beginPath();
-      ctx.moveTo(x - r * 1.7, staffY(s));
-      ctx.lineTo(x + r * 1.7, staffY(s));
-      ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(x - r*1.7, staffY(s)); ctx.lineTo(x + r*1.7, staffY(s)); ctx.stroke();
     }
   }
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(-0.2);
   ctx.beginPath();
-  ctx.ellipse(0, 0, r * 1.15, r * 0.82, 0, 0, Math.PI * 2);
-  ctx.fillStyle = '#111';
-  ctx.fill();
+  ctx.ellipse(0, 0, r*1.15, r*0.82, 0, 0, Math.PI*2);
+  if (isHalf) {
+    ctx.strokeStyle = '#111';
+    ctx.lineWidth   = r * 0.45;
+    ctx.stroke();
+  } else {
+    ctx.fillStyle = '#111';
+    ctx.fill();
+  }
   ctx.restore();
   const stemHeight = lineSpacing * 3.5;
   ctx.strokeStyle = '#111';
-  ctx.lineWidth = 3.5;
+  ctx.lineWidth   = 3.5;
   ctx.beginPath();
   if (step >= 4) {
-    ctx.moveTo(x - r * 0.9, y + r * 0.4);
-    ctx.lineTo(x - r * 0.9, y + stemHeight);
+    ctx.moveTo(x - r*0.9, y + r*0.4);
+    ctx.lineTo(x - r*0.9, y + stemHeight);
   } else {
-    ctx.moveTo(x + r * 0.9, y - r * 0.4);
-    ctx.lineTo(x + r * 0.9, y - stemHeight);
+    ctx.moveTo(x + r*0.9, y - r*0.4);
+    ctx.lineTo(x + r*0.9, y - stemHeight);
   }
   ctx.stroke();
 }
-
+ 
 // ── Playback ───────────────────────────────────────────────────────
 function togglePlay() {
   if (!notes.length) return;
@@ -452,7 +524,9 @@ function tick(ts) {
   lastTimestamp = ts;
   worldOffset += dt * (pixelsPerBeat / beatDuration);
   const last = notes[notes.length - 1];
-  if (last && (last.x - worldOffset + playheadX) < -noteRadius * 6) {
+  const lastEnd = last.x + (last.half ? pixelsPerBeat * 2 : pixelsPerBeat);
+  if (last && (lastEnd - worldOffset + playheadX) < -noteRadius * 6) {
+  // if (last && (last.x - worldOffset + playheadX) < -noteRadius * 6) {
     isPlaying = false;
     document.getElementById('play-btn').textContent = '▶ Play (Space)';
     worldOffset = 0;
