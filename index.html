@@ -254,7 +254,7 @@ function showStep(step) {
   promptError.textContent = '';
   if (step === 'tempo') {
     promptLabel.textContent    = 'What tempo?';
-    promptSublabel.textContent = 'Add H after a note for a half note:  C4H';
+    promptSublabel.textContent = 'Enter beats per minute';
     promptInput.style.display  = '';
     melodyStep.classList.remove('visible');
     promptInput.value      = '';
@@ -263,7 +263,7 @@ function showStep(step) {
     setTimeout(() => promptInput.focus(), 60);
   } else {
     promptLabel.textContent    = 'Choose or type a melody.';
-    promptSublabel.textContent = 'Add H after a note for a half note:  C4H';
+    promptSublabel.textContent = 'Q=quarter  H=half  E=eighth  DQ=dotted quarter';
     promptInput.style.display  = 'none';
     melodyStep.classList.add('visible');
     promptInputMelody.value = '';
