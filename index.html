@@ -421,8 +421,9 @@ function startMetronome() {
     nextClickTime += beatDuration / 1000;
     countInBeats++;
     if (countInBeats === COUNT_IN) {
-      // Count-in done — start scrolling on next beat
+      // Count-in done — start scrolling on the next beat
       metronomeTimeout = setTimeout(() => {
+        scheduleClick(getAudioCtx().currentTime + 0.05);
         lastTimestamp = null;
         requestAnimationFrame(scrollTick);
         metronomeTimeout = setTimeout(tick, beatDuration);
