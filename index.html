@@ -205,8 +205,9 @@
 // ═══════════════════════════════════════════════════════════════════
 //  SAVED MELODIES — edit this list to add your own before lessons
 //  Format: { name: "Display Name", notes: "C D E F G" }
-//  Add H after a note for a half note: C4H D4 E4H
 //  Tempo is always set by the student on the first screen.
+//  Q = quarter (default), H = half, E = eighth, DQ = dotted quarter
+//  e.g. C4 D4H E4E F4E G4DQ A4E
 // ═══════════════════════════════════════════════════════════════════
 const SAVED_MELODIES = [
   { name: "C Major Scale",          notes: "C4 D4 E4 F4 G4 A4 B4 C5" },
@@ -253,7 +254,7 @@ function showStep(step) {
   promptError.textContent = '';
   if (step === 'tempo') {
     promptLabel.textContent    = 'What tempo?';
-    promptSublabel.textContent = 'Enter beats per minute';
+    promptSublabel.textContent = 'Add H after a note for a half note:  C4H';
     promptInput.style.display  = '';
     melodyStep.classList.remove('visible');
     promptInput.value      = '';
@@ -343,15 +344,18 @@ function parseInput(str) {
   for (const tok of tokens) {
     const letter = tok[0];
     if (!'CDEFGAB'.includes(letter)) continue;
-    const isHalf = tok.endsWith('H');
-    const inner  = isHalf ? tok.slice(0, -1) : tok;
+    let duration = 'Q'; // default quarter
+    let inner = tok;
+    if (tok.endsWith('DQ')) { duration = 'DQ'; inner = tok.slice(0, -2); }
+    else if (tok.endsWith('H'))  { duration = 'H';  inner = tok.slice(0, -1); }
+    else if (tok.endsWith('E'))  { duration = 'E';  inner = tok.slice(0, -1); }
     const octave = inner.length > 1 ? parseInt(inner.slice(1)) : DEFAULT_OCTAVE[letter];
-    const key    = letter + octave;
-    if (NOTE_STEPS.hasOwnProperty(key)) result.push({ step: NOTE_STEPS[key], half: isHalf });
+    const key = letter + octave;
+    if (NOTE_STEPS.hasOwnProperty(key)) result.push({ step: NOTE_STEPS[key], duration });
   }
   return result;
 }
-
+ 
 // ── Canvas / layout ────────────────────────────────────────────────
 const canvas = document.getElementById('staff-canvas');
 const ctx    = canvas.getContext('2d');
@@ -440,8 +444,13 @@ function stopMetronome() {
 function buildNotes(parsed) {
   let x = 0;
   notes = parsed.map(n => {
-    const note = { step: n.step, half: n.half, x };
-    x += pixelsPerBeat * (n.half ? 2 : 1);
+    const note = { step: n.step, duration: n.duration, x };
+    switch (n.duration) {
+      case 'H':  x += pixelsPerBeat * 2;   break;
+      case 'E':  x += pixelsPerBeat * 0.5; break;
+      case 'DQ': x += pixelsPerBeat * 1.5; break;
+      default:   x += pixelsPerBeat;       break; // quarter
+    }
     return note;
   });
   worldOffset   = 0;
@@ -450,7 +459,7 @@ function buildNotes(parsed) {
   document.getElementById('play-btn').textContent = '▶ Play (Space)';
   draw();
 }
-
+ 
 // ── Drawing ────────────────────────────────────────────────────────
 function staffY(step) { return staffBottom - step * (lineSpacing / 2); }
 
@@ -489,46 +498,80 @@ function drawBarLines() {
 }
 
 function drawNotes() {
-  for (const note of notes) {
+  // First pass: draw all non-eighth notes and note heads for eighths
+  for (let i = 0; i < notes.length; i++) {
+    const note = notes[i];
     const screenX = note.x - worldOffset + playheadX;
     if (screenX < -noteRadius * 4 || screenX > W + noteRadius * 4) continue;
-    drawNote(screenX, staffY(note.step), note.step, note.half);
+    drawNote(screenX, staffY(note.step), note.step, note.duration);
+  }
+
+  // Second pass: draw beams between consecutive eighth notes
+  let i = 0;
+  while (i < notes.length) {
+    if (notes[i].duration === 'E') {
+      // Find run of consecutive eighths
+      let j = i + 1;
+      while (j < notes.length && notes[j].duration === 'E') j++;
+      const group = notes.slice(i, j);
+      // Beam in pairs
+      for (let k = 0; k < group.length; k += 2) {
+        const n1 = group[k];
+        const n2 = group[k + 1];
+        const x1 = n1.x - worldOffset + playheadX;
+        if (n2) {
+          const x2 = n2.x - worldOffset + playheadX;
+          drawBeam(x1, n1.step, x2, n2.step);
+        }
+        // Unpaired eighth gets a flag instead
+        else {
+          drawFlag(x1, n1.step);
+        }
+      }
+      i = j;
+    } else {
+      i++;
+    }
   }
 }
-
-function drawNote(x, y, step, isHalf) {
+ 
+function drawNote(x, y, step, duration) {
   const r = noteRadius;
+
+  // Ledger lines below
   if (step <= -2) {
     for (let s = -2; s >= step; s -= 2) {
       ctx.strokeStyle = '#111'; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.moveTo(x - r*1.7, staffY(s)); ctx.lineTo(x + r*1.7, staffY(s)); ctx.stroke();
     }
   }
+  // Ledger lines above
   if (step >= 10) {
     for (let s = 10; s <= step; s += 2) {
       ctx.strokeStyle = '#111'; ctx.lineWidth = 3;
       ctx.beginPath(); ctx.moveTo(x - r*1.7, staffY(s)); ctx.lineTo(x + r*1.7, staffY(s)); ctx.stroke();
     }
   }
+
+  // Note head
   ctx.save();
   ctx.translate(x, y);
   ctx.rotate(-0.2);
   ctx.beginPath();
   ctx.ellipse(0, 0, r*1.15, r*0.82, 0, 0, Math.PI*2);
-  if (isHalf) {
-    ctx.strokeStyle = '#111';
-    ctx.lineWidth   = r * 0.45;
-    ctx.stroke();
+  if (duration === 'H') {
+    ctx.strokeStyle = '#111'; ctx.lineWidth = r * 0.45; ctx.stroke();
   } else {
-    ctx.fillStyle = '#111';
-    ctx.fill();
+    ctx.fillStyle = '#111'; ctx.fill();
   }
   ctx.restore();
+
+  // Stem
   const stemHeight = lineSpacing * 3.5;
-  ctx.strokeStyle  = '#111';
-  ctx.lineWidth    = 3.5;
+  ctx.strokeStyle = '#111'; ctx.lineWidth = 3.5;
+  const stemUp = step < 4;
   ctx.beginPath();
-  if (step >= 4) {
+  if (!stemUp) {
     ctx.moveTo(x - r*0.9, y + r*0.4);
     ctx.lineTo(x - r*0.9, y + stemHeight);
   } else {
@@ -536,8 +579,57 @@ function drawNote(x, y, step, isHalf) {
     ctx.lineTo(x + r*0.9, y - stemHeight);
   }
   ctx.stroke();
+
+  // Dot for dotted quarter
+  if (duration === 'DQ') {
+    ctx.beginPath();
+    ctx.arc(x + r*1.7, y - r*0.3, r*0.28, 0, Math.PI*2);
+    ctx.fillStyle = '#111'; ctx.fill();
+  }
 }
 
+function drawBeam(x1, step1, x2, step2) {
+  const stemUp1 = step1 < 4;
+  const stemUp2 = step2 < 4;
+  const stemHeight = lineSpacing * 3.5;
+  const r = noteRadius;
+  const y1 = staffY(step1) + (stemUp1 ? -stemHeight : stemHeight);
+  const y2 = staffY(step2) + (stemUp2 ? -stemHeight : stemHeight);
+  const bx1 = stemUp1 ? x1 + r*0.9 : x1 - r*0.9;
+  const bx2 = stemUp2 ? x2 + r*0.9 : x2 - r*0.9;
+  ctx.strokeStyle = '#111';
+  ctx.lineWidth = lineSpacing * 0.28;
+  ctx.lineCap = 'butt';
+  ctx.beginPath();
+  ctx.moveTo(bx1, y1);
+  ctx.lineTo(bx2, y2);
+  ctx.stroke();
+  ctx.lineCap = 'round';
+}
+
+function drawFlag(x, step) {
+  const stemUp = step < 4;
+  const stemHeight = lineSpacing * 3.5;
+  const r = noteRadius;
+  const stemX = stemUp ? x + r*0.9 : x - r*0.9;
+  const stemTipY = staffY(step) + (stemUp ? -stemHeight : stemHeight);
+  // Simple curved flag
+  ctx.strokeStyle = '#111';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(stemX, stemTipY);
+  if (stemUp) {
+    ctx.bezierCurveTo(stemX + lineSpacing*1.2, stemTipY + lineSpacing*0.5,
+                      stemX + lineSpacing*1.2, stemTipY + lineSpacing*1.2,
+                      stemX + lineSpacing*0.3, stemTipY + lineSpacing*1.6);
+  } else {
+    ctx.bezierCurveTo(stemX - lineSpacing*1.2, stemTipY - lineSpacing*0.5,
+                      stemX - lineSpacing*1.2, stemTipY - lineSpacing*1.2,
+                      stemX - lineSpacing*0.3, stemTipY - lineSpacing*1.6);
+  }
+  ctx.stroke();
+}
+ 
 // ── Playback ───────────────────────────────────────────────────────
 function togglePlay() {
   if (!notes.length) return;
@@ -557,8 +649,10 @@ function scrollTick(ts) {
   if (lastTimestamp === null) lastTimestamp = ts;
   const dt = ts - lastTimestamp; lastTimestamp = ts;
   worldOffset += dt * (pixelsPerBeat / beatDuration);
-  const last    = notes[notes.length - 1];
-  const lastEnd = last.x + (last.half ? pixelsPerBeat * 2 : pixelsPerBeat);
+  const last = notes[notes.length - 1];
+  const lastDur = last.duration;
+  const lastBeats = lastDur === 'H' ? 2 : lastDur === 'E' ? 0.5 : lastDur === 'DQ' ? 1.5 : 1;
+  const lastEnd = last.x + pixelsPerBeat * lastBeats;
   if (last && (lastEnd - worldOffset + playheadX) < -noteRadius * 6) {
     isPlaying = false;
     stopMetronome();
