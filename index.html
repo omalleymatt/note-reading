@@ -347,10 +347,15 @@ function parseInput(str) {
     if (!'CDEFGAB'.includes(letter)) continue;
     let duration = 'Q';
     let inner = tok;
-    if (tok.endsWith('DQ'))     { duration = 'DQ'; inner = tok.slice(0, -2); }
-    else if (tok.endsWith('W')) { duration = 'W';  inner = tok.slice(0, -1); }
-    else if (tok.endsWith('H')) { duration = 'H';  inner = tok.slice(0, -1); }
-    else if (tok.endsWith('E')) { duration = 'E';  inner = tok.slice(0, -1); }
+    if (tok.endsWith('DQ'))          { duration = 'DQ'; inner = tok.slice(0, -2); }
+    else if (tok.endsWith('W'))      { duration = 'W';  inner = tok.slice(0, -1); }
+    else if (tok.endsWith('H'))      { duration = 'H';  inner = tok.slice(0, -1); }
+    else if (/\dE$/.test(tok))       { duration = 'E';  inner = tok.slice(0, -1); }
+    // Replaced this block because of eighth note at beginning of typed line bug
+    // if (tok.endsWith('DQ'))     { duration = 'DQ'; inner = tok.slice(0, -2); }
+    // else if (tok.endsWith('W')) { duration = 'W';  inner = tok.slice(0, -1); }
+    // else if (tok.endsWith('H')) { duration = 'H';  inner = tok.slice(0, -1); }
+    // else if (tok.endsWith('E')) { duration = 'E';  inner = tok.slice(0, -1); }
     const octave = inner.length > 1 ? parseInt(inner.slice(1)) : DEFAULT_OCTAVE[letter];
     const key = letter + octave;
     if (NOTE_STEPS.hasOwnProperty(key)) result.push({ step: NOTE_STEPS[key], duration });
