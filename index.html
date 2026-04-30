@@ -598,7 +598,7 @@ function drawBeam(x1, step1, x2, step2) {
   const bx1 = stemUp1 ? x1 + r*0.9 : x1 - r*0.9;
   const bx2 = stemUp2 ? x2 + r*0.9 : x2 - r*0.9;
   ctx.strokeStyle = '#111';
-  ctx.lineWidth = lineSpacing * 0.6;
+  ctx.lineWidth = lineSpacing * 0.5;
   ctx.lineCap = 'butt';
   ctx.beginPath();
   ctx.moveTo(bx1, y1);
@@ -615,7 +615,7 @@ function drawFlag(x, step) {
   const stemTipY = staffY(step) + (stemUp ? -stemHeight : stemHeight);
   // Simple curved flag
   ctx.strokeStyle = '#111';
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 6;
   ctx.beginPath();
   ctx.moveTo(stemX, stemTipY);
   if (stemUp) {
