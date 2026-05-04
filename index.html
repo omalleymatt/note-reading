@@ -237,7 +237,7 @@ const promptScreen      = document.getElementById('prompt-screen');
 const promptLabel       = document.getElementById('prompt-label');
 const promptSublabel    = document.getElementById('prompt-sublabel');
 const promptInput       = document.getElementById('prompt-input');
-const promptInputMelody = document.getElementById('prompt-input-melody');
+const promptInputMelody = document.getElementById('prompt-input-melody') || { value: '' };
 const melodySelect      = document.getElementById('melody-select');
 const melodyStep        = document.getElementById('melody-step');
 const promptBtn         = document.getElementById('prompt-btn');
@@ -308,8 +308,8 @@ function advancePrompt() {
     const src      = notesStr || (selIdx !== '' ? SAVED_MELODIES[selIdx].notes : '');
     const parsed   = parseInput(src);
     if (parsed.length === 0) {
-      promptError.textContent = 'No valid notes found. Try:  C D E F G';
-      promptInputMelody.focus();
+      promptError.textContent = 'Please select a melody from the list.';
+      melodySelect.focus();
       return;
     }
     const melodyName = (!notesStr && selIdx !== '') ? SAVED_MELODIES[selIdx].name : '';
